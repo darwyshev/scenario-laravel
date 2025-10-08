@@ -3,7 +3,23 @@
 
 <head>
     <title>Jadwal KBM</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .table-custom {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+        .table-custom th,
+        .table-custom td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            vertical-align: middle;
+        }
+        .table-custom thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+    </style>
 </head>
 
 <body>
@@ -34,33 +50,33 @@
         
         <div class="card">
             <div class="card-body">
-                <table class="table table-bordered table-striped align-middle">
-                    <thead class="table-primary text-center">
+                <table class="table table-hover table-custom">
+                    <thead>
                         <tr>
-                            <th>No</th>
+                            <th scope="col" width="5%">No</th>
                             @if(session('admin_role') === 'admin')
-                                <th>Nama Guru</th>
-                                <th>Mata Pelajaran</th>
-                                <th>Kelas</th>
+                                <th scope="col" width="20%">Nama Guru</th>
+                                <th scope="col" width="15%">Mata Pelajaran</th>
+                                <th scope="col" width="15%">Kelas</th>
                             @elseif(session('admin_role') === 'siswa')
-                                <th>Nama Guru</th>
-                                <th>Mata Pelajaran</th>
+                                <th scope="col" width="25%">Nama Guru</th>
+                                <th scope="col" width="25%">Mata Pelajaran</th>
                             @endif
                             @if(session('admin_role') === 'guru')
-                                <th>Kelas</th>
+                                <th scope="col" width="25%">Kelas</th>
                             @endif
-                            <th>Hari</th>
-                            <th>Jam Mulai</th>
-                            <th>Jam Selesai</th>
+                            <th scope="col" width="15%">Hari</th>
+                            <th scope="col" width="15%">Jam Mulai</th>
+                            <th scope="col" width="15%">Jam Selesai</th>
                             @if(session('admin_role') === 'admin')
-                                <th>Aksi</th>
+                                <th scope="col" width="10%">Aksi</th>
                             @endif
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($jadwals as $i => $jadwal)
                         <tr>
-                            <td class="text-center">{{ $i + 1 }}</td>
+                            <th scope="row">{{ $i + 1 }}</th>
                             @if(session('admin_role') === 'admin')
                                 <td>{{ $jadwal->guru->nama }}</td>
                                 <td>{{ $jadwal->guru->mapel }}</td>
@@ -76,14 +92,14 @@
                             <td>{{ $jadwal->mulai }}</td>
                             <td>{{ $jadwal->selesai }}</td>
                             @if(session('admin_role') === 'admin')
-                                <td class="text-center">
+                                <td>
                                     <a href="{{ route('kbm.by-kelas', $jadwal->idwalas) }}" class="btn btn-sm btn-info">Lihat Kelas</a>
                                 </td>
                             @endif
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="{{ session('admin_role') === 'admin' ? '8' : '5' }}" class="text-center text-muted">
+                            <td colspan="{{ session('admin_role') === 'admin' ? '8' : '5' }}" class="text-center">
                                 @if(session('admin_role') === 'guru')
                                     Anda belum memiliki jadwal mengajar
                                 @elseif(session('admin_role') === 'siswa')
@@ -104,7 +120,6 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

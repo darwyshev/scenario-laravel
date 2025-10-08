@@ -110,18 +110,42 @@ public function home()
 
     $guru = null;
     $siswaLogin = null;
+    $jadwals = null;
+    $kelasData = null;
+    $siswaData = null;
 
-    if ($role === 'guru') {
+    if ($role === 'admin') {
+        // Admin melihat semua jadwal
+        $jadwals = \App\Models\kbm::with(['guru', 'walas'])->get();
+    } elseif ($role === 'guru') {
+        // Data guru untuk tampilan profil
         $guru = \App\Models\Guru::where('id', $id)
                 ->with(['walas.kelas.siswa'])
                 ->first();
+        
+        // Jadwal mengajar guru
+        if ($guru) {
+            $jadwals = \App\Models\kbm::with(['guru', 'walas'])
+                ->where('idguru', $guru->idguru)
+                ->get();
+        }
     } elseif ($role === 'siswa') {
+        // Data siswa untuk tampilan profil
         $siswaLogin = \App\Models\Siswa::where('id', $id)
                        ->with(['kelas.walas.guru'])
                        ->first();
+        
+        // Data untuk jadwal KBM
+        if ($siswaLogin && $siswaLogin->kelas) {
+            $siswaData = $siswaLogin;
+            $kelasData = $siswaLogin->kelas->walas;
+            $jadwals = \App\Models\kbm::with(['guru', 'walas'])
+                ->where('idwalas', $siswaLogin->kelas->idwalas)
+                ->get();
+        }
     }
 
-    return view('home', compact('siswa', 'guru', 'siswaLogin'));
+    return view('home', compact('siswa', 'guru', 'siswaLogin', 'jadwals', 'siswaData', 'kelasData'));
 }
 
 

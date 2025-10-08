@@ -3,13 +3,12 @@
 
 <head>
     <title>Jadwal KBM - {{ $kelas->namakelas }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
     <div class="container mt-5">
         <h2 class="mb-4">Jadwal Pelajaran - {{ $kelas->namakelas }}</h2>
-        
+
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">Informasi Kelas</h5>
@@ -18,46 +17,45 @@
                 <p class="mb-0"><strong>Tahun Ajaran:</strong> {{ $kelas->tahunajaran }}</p>
             </div>
         </div>
-        
+
         <div class="card">
             <div class="card-body">
-                <table class="table table-bordered table-striped align-middle">
-                    <thead class="table-primary text-center">
+                <table class="table table-hover">
+                    <thead>
                         <tr>
-                            <th>No</th>
-                            <th>Nama Guru</th>
-                            <th>Mata Pelajaran</th>
-                            <th>Hari</th>
-                            <th>Jam Mulai</th>
-                            <th>Jam Selesai</th>
+                            <th scope="col" width="5%">#</th>
+                            <th scope="col" width="20%">Nama Guru</th>
+                            <th scope="col" width="20%">Mata Pelajaran</th>
+                            <th scope="col" width="15%">Hari</th>
+                            <th scope="col" width="20%">Jam Mulai</th>
+                            <th scope="col" width="20%">Jam Selesai</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($kelas->kbm as $i => $jadwal)
-                        <tr>
-                            <td class="text-center">{{ $i + 1 }}</td>
-                            <td>{{ $jadwal->guru->nama }}</td>
-                            <td>{{ $jadwal->guru->mapel }}</td>
-                            <td>{{ $jadwal->hari }}</td>
-                            <td>{{ $jadwal->mulai }}</td>
-                            <td>{{ $jadwal->selesai }}</td>
-                        </tr>
+                            <tr>
+                                <th scope="row">{{ $i + 1 }}</th>
+                                <td>{{ $jadwal->guru->nama }}</td>
+                                <td>{{ $jadwal->guru->mapel }}</td>
+                                <td>{{ $jadwal->hari }}</td>
+                                <td>{{ $jadwal->mulai }}</td>
+                                <td>{{ $jadwal->selesai }}</td>
+                            </tr>
                         @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">Belum ada jadwal pelajaran</td>
-                        </tr>
+                            <tr>
+                                <td colspan="6" class="text-center">Belum ada jadwal pelajaran</td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
-        
+
         <div class="mt-3">
             <a href="{{ route('kbm.index') }}" class="btn btn-secondary">Kembali</a>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
