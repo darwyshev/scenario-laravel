@@ -5,7 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 
-class AdminMiddleware
+class AuthMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
@@ -13,12 +13,10 @@ class AdminMiddleware
             return redirect()->route('formLogin')->with('error', 'Silakan login terlebih dahulu.');
         }
 
-        // Share admin data if user is admin
-        if (session('admin_role') === 'admin') {
-            $siswa = \App\Models\Siswa::with(['kelas.walas.guru'])->get();
-            view()->share('siswa', $siswa);
-            $request->siswa = $siswa;
-        }
+        // Share common data with all views
+        view()->share('admin_role', session('admin_role'));
+        view()->share('admin_username', session('admin_username'));
+        view()->share('admin_id', session('admin_id'));
         
         return $next($request);
     }

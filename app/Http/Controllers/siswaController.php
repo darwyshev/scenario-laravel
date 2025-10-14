@@ -12,9 +12,7 @@ class siswaController extends Controller
     //
     public function home()
     {
-        if (!session()->has('admin_id')) {
-            return redirect()->route('login');
-        }
+       
         $siswa = siswa::all();
         return view('home', compact('siswa'));
     }

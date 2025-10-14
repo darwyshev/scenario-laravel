@@ -26,16 +26,26 @@
     <br><br>
 
     {{-- ================= GURU ================= --}}
-    @if (session('admin_role') === 'guru' && isset($guru))
-        <h3>Data Guru</h3>
-        <p><b>Nama :</b> {{ $guru->nama }}</p>
-        <p><b>Mapel :</b> {{ $guru->mapel }}</p>
+    @if (session('admin_role') === 'guru' && $guru)
+        <div class="container mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h3>Data Guru</h3>
+                    <p><b>Nama :</b> {{ $guru->nama }}</p>
+                    <p><b>Mapel :</b> {{ $guru->mapel }}</p>
+                </div>
+            </div>
+        </div>
 
         {{-- Jika guru ini walas --}}
         @if($guru->walas)
             <div class="container mt-5">
-                <h4 class="mb-3">Wali Kelas: {{ $guru->walas->namakelas }} ({{ $guru->walas->jenjang }})</h4>
-                <h5 class="mb-3">Daftar Siswa:</h5>
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Wali Kelas: {{ $guru->walas->namakelas }} ({{ $guru->walas->jenjang }})</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="mb-3">Daftar Siswa:</h5>
                 
                 <div class="card">
                     <div class="card-body">
@@ -67,18 +77,29 @@
     @endif
 
     {{-- ================= SISWA ================= --}}
-    @if (session('admin_role') === 'siswa' && isset($siswaLogin))
-        <h3>Data Siswa</h3>
-        <p><b>Nama :</b> {{ $siswaLogin->nama }}</p>
-        <p><b>BB :</b> {{ $siswaLogin->bb }}</p>
-        <p><b>TB :</b> {{ $siswaLogin->tb }}</p>
-
-        {{-- Jika siswa punya kelas --}}
-        @if($siswaLogin->kelas)
-            <p><b>Kelas :</b> {{ $siswaLogin->kelas->walas->namakelas }} ({{ $siswaLogin->kelas->walas->jenjang }})</p>
-            <p><b>Wali Kelas :</b> {{ $siswaLogin->kelas->walas->guru->nama }}</p>
-        @endif
-        <br>
+    @if (session('admin_role') === 'siswa' && $siswaLogin)
+        <div class="container mt-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">Data Siswa</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><b>Nama :</b> {{ $siswaLogin->nama }}</p>
+                            <p><b>Berat Badan :</b> {{ $siswaLogin->bb }} kg</p>
+                            <p><b>Tinggi Badan :</b> {{ $siswaLogin->tb }} cm</p>
+                        </div>
+                        @if($siswaLogin->kelas)
+                        <div class="col-md-6">
+                            <p><b>Kelas :</b> {{ $siswaLogin->kelas->walas->namakelas }} ({{ $siswaLogin->kelas->walas->jenjang }})</p>
+                            <p><b>Wali Kelas :</b> {{ $siswaLogin->kelas->walas->guru->nama }}</p>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
     @endif
 
     {{-- ================= TABEL SISWA (HANYA ADMIN) ================= --}}
@@ -134,9 +155,9 @@
         @elseif(session('admin_role') === 'siswa' && isset($kelasData))
             <h2 class="mb-4">Jadwal Pelajaran Kelas Saya</h2>
             <div class="alert alert-info">
-                <strong>Siswa:</strong> {{ $siswaData->nama }} | 
+                <strong>Siswa:</strong> {{ $siswaLogin->nama }} | 
                 <strong>Kelas:</strong> {{ $kelasData->namakelas }} ({{ $kelasData->jenjang }}) | 
-                <strong>Wali Kelas:</strong> {{ $kelasData->guru->nama }}
+                <strong>Wali Kelas:</strong> {{ $waliKelas->nama }}
             </div>
         @endif
         
@@ -164,6 +185,7 @@
                             @endif
                             @if(session('admin_role') === 'guru')
                                 <th scope="col" width="25%">Kelas</th>
+                                <th scope="col" width="25%">Jenjang</th>
                             @endif
                             <th scope="col" width="15%">Hari</th>
                             <th scope="col" width="15%">Jam Mulai</th>
@@ -187,6 +209,7 @@
                             @endif
                             @if(session('admin_role') === 'guru')
                                 <td>{{ $jadwal->walas->namakelas }}</td>
+                                <td>{{ $jadwal->walas->jenjang }}</td>
                             @endif
                             <td>{{ $jadwal->hari }}</td>
                             <td>{{ $jadwal->mulai }}</td>

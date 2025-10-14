@@ -18,7 +18,7 @@ class guruFactory extends Factory
     public function definition(): array
     {
         return [
-                        'id' => Admin::factory()->create(['role' => 'guru'])->id,
+            'id' => Admin::factory()->create(['role' => 'guru'])->id,
             'nama' => $this->faker->name,
             'mapel' => $this->faker->randomElement(['Matematika','IPAS','Bahasa Indonesia','Informatika']),
         ];

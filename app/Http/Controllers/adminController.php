@@ -23,17 +23,22 @@ class adminController extends Controller
     public function prosesLogin(Request $request)
     {
         $admin = admin::where('username', $request->username)->first();
-
-        if ($admin && Hash::check($request->password, $admin->password)) {
-            // simpan ke session
-            session([
-                'admin_id' => $admin->id,
-                'admin_username' => $admin->username,
-                'admin_role' => $admin->role
-            ]);
-            return redirect()->route('home');
+        
+        // Validate credentials using guard or attempt method
+        $validCredentials = $admin && Hash::check($request->password, $admin->password);
+        
+        if (!$validCredentials) {
+            return back()->with('error', 'Username atau password salah.');
         }
-        return back()->with('error', 'Username atau password salah.');
+        
+        // Set session data
+        session([
+            'admin_id' => $admin->id,
+            'admin_username' => $admin->username,
+            'admin_role' => $admin->role
+        ]);
+        
+        return redirect()->route('home');
     }
 
     public function logout()
@@ -65,35 +70,12 @@ class adminController extends Controller
                 'role' => $request->role,
             ]);
 
-            // jika role siswa → simpan detail ke tabel datasiswa
-            if ($request->role === 'siswa') {
-                $request->validate([
-                    'nama' => 'required|string|max:100',
-                    'tb'   => 'required|numeric',
-                    'bb'   => 'required|numeric',
-                ]);
-
-                siswa::create([
-                    'id'   => $admin->id,  // foreign key ke dataadmin
-                    'nama' => $request->nama,
-                    'tb'   => $request->tb,
-                    'bb'   => $request->bb,
-                ]);
-            }
-
-            // jika role guru → simpan detail ke tabel dataguru
-            if ($request->role === 'guru') {
-                $request->validate([
-                    'nama'  => 'required|string|max:100',
-                    'mapel' => 'required|string|max:100',
-                ]);
-
-                guru::create([
-                    'id'    => $admin->id, // foreign key ke dataadmin
-                    'nama'  => $request->nama,
-                    'mapel' => $request->mapel,
-                ]);
-            }
+            // Validate and create role-specific data
+            match($request->role) {
+                'siswa' => $this->createSiswaData($request, $admin->id),
+                'guru' => $this->createGuruData($request, $admin->id),
+                default => null,
+            };
 
             return redirect()->route('formLogin')->with('success', 'Registrasi berhasil! Silakan login.');
 
@@ -104,50 +86,76 @@ class adminController extends Controller
 public function home()
 {
     $role = session('admin_role');
-    $id   = session('admin_id');
-
-    $siswa = \App\Models\Siswa::with(['kelas.walas.guru'])->get();
-
-    $guru = null;
-    $siswaLogin = null;
-    $jadwals = null;
-    $kelasData = null;
-    $siswaData = null;
-
-    if ($role === 'admin') {
-        // Admin melihat semua jadwal
-        $jadwals = \App\Models\kbm::with(['guru', 'walas'])->get();
-    } elseif ($role === 'guru') {
-        // Data guru untuk tampilan profil
-        $guru = \App\Models\Guru::where('id', $id)
+    $userId = session('admin_id');
+    $data = [];
+    
+    // Load role-specific data
+    switch($role) {
+        case 'admin':
+            $data['siswa'] = \App\Models\Siswa::with(['kelas.walas.guru'])->get();
+            $data['jadwals'] = \App\Models\kbm::with(['guru', 'walas'])->get();
+            break;
+            
+        case 'guru':
+            $guru = \App\Models\guru::where('id', $userId)
                 ->with(['walas.kelas.siswa'])
                 ->first();
-        
-        // Jadwal mengajar guru
-        if ($guru) {
-            $jadwals = \App\Models\kbm::with(['guru', 'walas'])
-                ->where('idguru', $guru->idguru)
-                ->get();
-        }
-    } elseif ($role === 'siswa') {
-        // Data siswa untuk tampilan profil
-        $siswaLogin = \App\Models\Siswa::where('id', $id)
-                       ->with(['kelas.walas.guru'])
-                       ->first();
-        
-        // Data untuk jadwal KBM
-        if ($siswaLogin && $siswaLogin->kelas) {
-            $siswaData = $siswaLogin;
-            $kelasData = $siswaLogin->kelas->walas;
-            $jadwals = \App\Models\kbm::with(['guru', 'walas'])
-                ->where('idwalas', $siswaLogin->kelas->idwalas)
-                ->get();
-        }
+                
+            $data['guru'] = $guru;
+            if ($guru) {
+                $data['jadwals'] = \App\Models\kbm::with(['guru', 'walas'])
+                    ->where('idguru', $guru->idguru)
+                    ->get();
+            }
+            break;
+            
+        case 'siswa':
+            $siswa = \App\Models\Siswa::where('id', $userId)
+                ->with(['kelas.walas.guru'])
+                ->first();
+                
+            $data['siswaLogin'] = $siswa;
+            if ($siswa && $siswa->kelas) {
+                $data['jadwals'] = \App\Models\kbm::with(['guru', 'walas'])
+                    ->where('idwalas', $siswa->kelas->idwalas)
+                    ->get();
+                $data['kelasData'] = $siswa->kelas->walas;
+                $data['waliKelas'] = $siswa->kelas->walas->guru;
+            }
+            break;
     }
 
-    return view('home', compact('siswa', 'guru', 'siswaLogin', 'jadwals', 'siswaData', 'kelasData'));
+    return view('home', $data);
 }
 
+private function createSiswaData(Request $request, $adminId)
+{
+    $request->validate([
+        'nama' => 'required|string|max:100',
+        'tb'   => 'required|numeric',
+        'bb'   => 'required|numeric',
+    ]);
 
+    return siswa::create([
+        'id'   => $adminId,
+        'nama' => $request->nama,
+        'tb'   => $request->tb,
+        'bb'   => $request->bb,
+    ]);
+}
+
+private function createGuruData(Request $request, $adminId)
+{
+    $request->validate([
+        'nama'  => 'required|string|max:100',
+        'mapel' => 'required|string|max:100',
+    ]);
+
+    return guru::create([
+        'id'    => $adminId,
+        'nama'  => $request->nama,
+        'mapel' => $request->mapel,
+    ]);
+}
 
 }
