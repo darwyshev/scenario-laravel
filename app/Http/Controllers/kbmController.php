@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\kbm;
 use App\Models\guru;
 use App\Models\Walas;
+use App\Models\siswa;
 
 class kbmController extends Controller
 {
@@ -62,5 +63,35 @@ class kbmController extends Controller
     {
         $kelas = Walas::with(['kbm.guru'])->findOrFail($idwalas);
         return view('kbm.by-kelas', compact('kelas'));
+    }
+
+    public function getData()
+    {
+        $role = session('admin_role');
+        $userId = session('admin_id');
+
+        $query = kbm::with(['guru', 'walas' => function($query) {
+            $query->select('idwalas', 'namakelas', 'jenjang');
+        }]);
+
+        switch ($role) {
+            case 'guru':
+                $guru = guru::where('id', $userId)->first();
+                if ($guru) {
+                    $query->where('idguru', $guru->idguru);
+                }
+                break;
+
+            case 'siswa':
+                $siswa = siswa::where('id', $userId)
+                    ->with('kelas.walas')
+                    ->first();
+                if ($siswa && $siswa->kelas) {
+                    $query->where('idwalas', $siswa->kelas->idwalas);
+                }
+                break;
+        }
+
+        return response()->json($query->get());
     }
 }

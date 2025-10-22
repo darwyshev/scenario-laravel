@@ -22,7 +22,7 @@ Route::get('/logout', [adminController::class, 'logout'])->name('logout');
 Route::middleware([AuthMiddleware::class])->group(function () {
     // Home page
     Route::get('/home', [adminController::class, 'home'])->name('home');
-    
+
     // Admin Routes
     Route::middleware([AdminMiddleware::class])->group(function () {
         // CRUD Siswa
@@ -30,8 +30,11 @@ Route::middleware([AuthMiddleware::class])->group(function () {
         Route::post('/siswa/store', [siswaController::class, 'store'])->name('siswa.store');
         Route::get('/siswa/{id}/edit', [siswaController::class, 'edit'])->name('siswa.edit');
         Route::post('/siswa/{id}/update', [siswaController::class, 'update'])->name('siswa.update');
-        Route::get('/siswa/{id}/delete', [siswaController::class, 'destroy'])->name('siswa.delete');
-        
+        Route::delete('/siswa/{id}/delete', [siswaController::class, 'destroy'])->name('siswa.delete');
+        Route::get('/siswa/data', [siswaController::class, 'getData'])->name('siswa.data');
+        Route::get('/siswa/search', [siswaController::class, 'search'])->name('siswa.search');
+        Route::get('/kbm/data', [kbmController::class, 'getData'])->name('kbm.data');
+
         // Admin KBM routes
         Route::get('/kbm/guru/{idguru}', [kbmController::class, 'showByGuru'])->name('kbm.by-guru');
     });

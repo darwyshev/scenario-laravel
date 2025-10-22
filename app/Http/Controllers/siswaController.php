@@ -12,9 +12,14 @@ class siswaController extends Controller
     //
     public function home()
     {
-       
-        $siswa = siswa::all();
-        return view('home', compact('siswa'));
+        return view('home');
+    }
+
+    public function getData()
+    {
+        $siswa = Siswa::all();
+        return response()->json($siswa);
+
     }
 
     public function create()
@@ -48,7 +53,7 @@ class siswaController extends Controller
                 'tb' => $request->tb,
                 'bb' => $request->bb,
             ]);
-            
+
             return redirect()->route('home')->with('success', 'Siswa berhasil ditambahkan dengan akun login');
 
         } catch (\Exception $e) {
@@ -76,14 +81,35 @@ class siswaController extends Controller
             'tb' => $request->tb,
             'bb' => $request->bb,
         ]);
-        
+
         return redirect()->route('home')->with('success', 'Data siswa berhasil diupdate');
     }
 
     public function destroy($id)
     {
-        $siswa = siswa::where('idsiswa', $id)->firstOrFail();
-        $siswa->delete();
-        return redirect()->route('home')->with('success', 'Data siswa berhasil dihapus');
+        try {
+            $siswa = siswa::where('idsiswa', $id)->firstOrFail();
+            $siswa->delete();
+
+            if (request()->ajax()) {
+                return response()->json(['message' => 'Siswa berhasil dihapus']);
+            }
+
+            return redirect()->route('home')->with('success', 'Data siswa berhasil dihapus');
+        } catch (\Exception $e) {
+            if (request()->ajax()) {
+                return response()->json(['error' => 'Gagal menghapus siswa'], 500);
+            }
+
+            return redirect()->route('home')->with('error', 'Gagal menghapus siswa');
+        }
+    }
+
+    public function search(Request $request)
+    {
+        $keyword = strtolower($request->input('q'));
+        $siswa = Siswa::whereRaw('LOWER(nama) LIKE ?', ["%{$keyword}%"])
+            ->get();
+        return response()->json($siswa);
     }
 }
