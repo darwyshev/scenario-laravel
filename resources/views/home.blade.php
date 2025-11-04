@@ -278,7 +278,7 @@
                         @if(session('admin_role') === 'admin' || session('admin_role') === 'guru')
                         <div class="mb-3 row">
                             <div class="col">
-                                <input type="text" id="kbm-search" class="form-control form-control-sm" placeholder="Cari (Guru, Mapel, Kelas, Jenjang, Hari)...">
+                                <input type="text" id="kbm-search" class="form-control form-control-sm" placeholder="Format: guru, mapel, kelasLetter, jenjang, hari, time — e.g. adi, informatika, b, xi, selasa, 10.00">
                             </div>
                         </div>
                         @endif
@@ -316,6 +316,8 @@
                             let kbmData = []; // Store the original data
                             
                             function codeCAD(value) {
+
+                                
                                 // Normalize jenjang or search strings to a canonical short code: x, xi, xii
                                 if (!value) return '';
                                 let s = value.toString().toLowerCase().trim();

@@ -92,29 +92,98 @@ class kbmController extends Controller
                 break;
         }
 
-        // Server-side search support: accept a single 'q' parameter and filter across
-        // related guru (nama, mapel), walas (namakelas, jenjang) and hari.
+        // Server-side search support: accept a single 'q' parameter.
+        // If the 'q' string contains commas we'll treat it as a formatted search:
+        // 0: guru (nama), 1: mapel, 2: kelas (e.g. A/B/C), 3: jenjang, 4: hari, 5: time (mulai/selesai)
+        // Tokens are applied as AND filters. If there are no commas we fall back to a broad search.
         $search = request()->query('q');
         if ($search) {
-            $searchRaw = trim(strtolower($search));
-            $code = $this->codeCAD($searchRaw); // normalize jenjang search to X/XI/XII if possible
+            $searchRaw = trim($search);
+            // detect formatted (comma-separated) search
+            if (strpos($searchRaw, ',') !== false) {
+                $tokens = array_map('trim', explode(',', $searchRaw));
+                // apply each token as an AND filter according to position
+                if (!empty($tokens)) {
+                    // Lowercase tokens for comparisons where appropriate
+                    $t = array_map(function($s){ return strtolower($s); }, $tokens);
 
-            $query->where(function($q) use ($searchRaw, $code) {
-                $q->whereHas('guru', function($qg) use ($searchRaw) {
-                    $qg->where('nama', 'like', "%{$searchRaw}%")
-                       ->orWhere('mapel', 'like', "%{$searchRaw}%");
-                })
-                ->orWhereHas('walas', function($qw) use ($searchRaw, $code) {
-                    $qw->where('namakelas', 'like', "%{$searchRaw}%");
-                    if ($code) {
-                        // match normalized jenjang exactly (data stores X/XI/XII)
-                        $qw->orWhere('jenjang', '=', $code);
-                    } else {
-                        $qw->orWhere('jenjang', 'like', "%{$searchRaw}%");
-                    }
-                })
-                ->orWhere('hari', 'like', "%{$searchRaw}%");
-            });
+                    $query->where(function($q) use ($t) {
+                        // token 0: guru nama
+                        if (isset($t[0]) && $t[0] !== '') {
+                            $q->whereHas('guru', function($g) use ($t) {
+                                $g->where('nama', 'like', "%{$t[0]}%");
+                            });
+                        }
+
+                        // token 1: mapel
+                        if (isset($t[1]) && $t[1] !== '') {
+                            $q->whereHas('guru', function($g) use ($t) {
+                                $g->where('mapel', 'like', "%{$t[1]}%");
+                            });
+                        }
+
+                        // token 2: kelas (allow matching by letter or any substring)
+                        if (isset($t[2]) && $t[2] !== '') {
+                            $kelasToken = $t[2];
+                            $q->whereHas('walas', function($w) use ($kelasToken) {
+                                $w->where('namakelas', 'like', "%{$kelasToken}%")
+                                  ->orWhereRaw('LOWER(namakelas) LIKE ?', ["% {$kelasToken}%"]);
+                            });
+                        }
+
+                        // token 3: jenjang (use codeCAD normalization)
+                        if (isset($t[3]) && $t[3] !== '') {
+                            $jenjangToken = $t[3];
+                            $code = $this->codeCAD($jenjangToken);
+                            $q->whereHas('walas', function($w) use ($jenjangToken, $code) {
+                                if ($code) {
+                                    $w->where('jenjang', '=', $code);
+                                } else {
+                                    $w->where('jenjang', 'like', "%{$jenjangToken}%");
+                                }
+                            });
+                        }
+
+                        // token 4: hari
+                        if (isset($t[4]) && $t[4] !== '') {
+                            $hariToken = $t[4];
+                            $q->where('hari', 'like', "%{$hariToken}%");
+                        }
+
+                        // token 5: time (match mulai or selesai)
+                        if (isset($t[5]) && $t[5] !== '') {
+                            $timeToken = $t[5];
+                            // allow both dot and colon formats
+                            $timeAlt = str_replace('.', ':', $timeToken);
+                            $q->where(function($qt) use ($timeToken, $timeAlt) {
+                                $qt->where('mulai', 'like', "%{$timeToken}%")
+                                   ->orWhere('mulai', 'like', "%{$timeAlt}%")
+                                   ->orWhere('selesai', 'like', "%{$timeToken}%")
+                                   ->orWhere('selesai', 'like', "%{$timeAlt}%");
+                            });
+                        }
+                    });
+                }
+            } else {
+                // Fallback: broad search across guru (nama,mapel), walas (namakelas, jenjang) and hari
+                $searchLower = strtolower($searchRaw);
+                $code = $this->codeCAD($searchLower);
+                $query->where(function($q) use ($searchLower, $code) {
+                    $q->whereHas('guru', function($qg) use ($searchLower) {
+                        $qg->where('nama', 'like', "%{$searchLower}%")
+                           ->orWhere('mapel', 'like', "%{$searchLower}%");
+                    })
+                    ->orWhereHas('walas', function($qw) use ($searchLower, $code) {
+                        $qw->where('namakelas', 'like', "%{$searchLower}%");
+                        if ($code) {
+                            $qw->orWhere('jenjang', '=', $code);
+                        } else {
+                            $qw->orWhere('jenjang', 'like', "%{$searchLower}%");
+                        }
+                    })
+                    ->orWhere('hari', 'like', "%{$searchLower}%");
+                });
+            }
         }
 
         return response()->json($query->get());
