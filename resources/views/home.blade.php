@@ -275,22 +275,10 @@
 
                 <div class="card">
                     <div class="card-body">
-                        @if(session('admin_role') === 'admin')
+                        @if(session('admin_role') === 'admin' || session('admin_role') === 'guru')
                         <div class="mb-3 row">
                             <div class="col">
-                                <input type="text" class="form-control form-control-sm kbm-filter" data-column="guru" placeholder="Cari Guru...">
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control form-control-sm kbm-filter" data-column="mapel" placeholder="Cari Mapel...">
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control form-control-sm kbm-filter" data-column="kelas" placeholder="Cari Kelas...">
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control form-control-sm kbm-filter" data-column="jenjang" placeholder="Cari Jenjang...">
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control form-control-sm kbm-filter" data-column="hari" placeholder="Cari Hari...">
+                                <input type="text" id="kbm-search" class="form-control form-control-sm" placeholder="Cari (Guru, Mapel, Kelas, Jenjang, Hari)...">
                             </div>
                         </div>
                         @endif
@@ -327,52 +315,33 @@
                         $(document).ready(function() {
                             let kbmData = []; // Store the original data
                             
+                            function codeCAD(value) {
+                                // Normalize jenjang or search strings to a canonical short code: x, xi, xii
+                                if (!value) return '';
+                                let s = value.toString().toLowerCase().trim();
+                                // remove common prefixes/suffixes
+                                s = s.replace(/kelas\s*/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+                                // if contains number, map to roman-like short code
+                                if (/\b(10|11|12)\b/.test(s)) {
+                                    if (s.match(/\b10\b/)) return 'x';
+                                    if (s.match(/\b11\b/)) return 'xi';
+                                    if (s.match(/\b12\b/)) return 'xii';
+                                }
+                                // check for roman/letter forms
+                                if (s.indexOf('xii') !== -1) return 'xii';
+                                if (s.indexOf('xi') !== -1) return 'xi';
+                                if (s.indexOf('x') !== -1) return 'x';
+                                // fallback: return first token
+                                return s.split(' ')[0];
+                            }
+
+                            // Instead of filtering entirely on the client for jenjang accuracy,
+                            // send the query to the server which uses the server-side codeCAD
+                            // normalization. This helps matching 'X', 'XI', '10', '11', etc.
                             function filterKBMData() {
-                                const filters = {};
-                                $('.kbm-filter').each(function() {
-                                    const column = $(this).data('column');
-                                    const value = $(this).val().toLowerCase();
-                                    if (value) {
-                                        filters[column] = value;
-                                        console.log(`Filter ${column}:`, value); // Debug log
-                                    }
-                                });
-                                console.log('Active filters:', filters); // Debug log
-
-                                const filteredData = kbmData.filter(jadwal => {
-                                    return Object.entries(filters).every(([column, value]) => {
-                                        try {
-                                            // Convert both the search value and the data value to lowercase for comparison
-                                            const searchValue = value.toLowerCase();
-                                            
-                                            switch(column) {
-                                                case 'guru':
-                                                    const guruNama = (jadwal.guru.nama || '').toString().toLowerCase();
-                                                    return guruNama.includes(searchValue);
-                                                case 'mapel':
-                                                    const mapel = (jadwal.guru.mapel || '').toString().toLowerCase();
-                                                    return mapel.includes(searchValue);
-                                                case 'kelas':
-                                                    const kelas = (jadwal.walas.namakelas || '').toString().toLowerCase();
-                                                    return kelas.includes(searchValue);
-                                                case 'jenjang':
-                                                    const jenjang = (jadwal.walas.jenjang || '').toString().toLowerCase();
-                                                    console.log('Comparing jenjang:', jenjang, 'with search:', searchValue);
-                                                    return jenjang.includes(searchValue);
-                                                case 'hari':
-                                                    const hari = (jadwal.hari || '').toString().toLowerCase();
-                                                    return hari.includes(searchValue);
-                                                default:
-                                                    return true;
-                                            }
-                                        } catch (error) {
-                                            console.error('Filtering error:', error, 'Column:', column, 'Data:', jadwal);
-                                            return false;
-                                        }
-                                    });
-                                });
-
-                                renderKBMTable(filteredData);
+                                const q = ($('#kbm-search').length ? $('#kbm-search').val().toLowerCase().trim() : '');
+                                // If empty, load full dataset from server
+                                loadKBM(q);
                             }
 
                             function renderKBMTable(data) {
@@ -427,10 +396,14 @@
                                 $('#tabel-kbm tbody').html(rows);
                             }
 
-                            function loadKBM() {
+                            function loadKBM(query) {
+                                const data = {};
+                                if (query && query.length > 0) data.q = query;
+
                                 $.ajax({
                                     url: "{{ route('kbm.data') }}",
                                     method: "GET",
+                                    data: data,
                                     success: function(response) {
                                         console.log('KBM Data:', response); // Debug log
                                         kbmData = response; // Store the original data
@@ -443,9 +416,13 @@
                                 });
                             }
 
-                            // Add filter event handlers
-                            $('.kbm-filter').on('keyup', function() {
-                                filterKBMData();
+                            // Add global search handler (single search input) with debounce
+                            let kbmSearchTimer = null;
+                            $(document).on('keyup', '#kbm-search', function() {
+                                clearTimeout(kbmSearchTimer);
+                                kbmSearchTimer = setTimeout(() => {
+                                    filterKBMData();
+                                }, 300);
                             });
 
                             // Show alert message

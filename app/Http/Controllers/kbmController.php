@@ -74,7 +74,7 @@ class kbmController extends Controller
             $query->select('idwalas', 'namakelas', 'jenjang');
         }]);
 
-        switch ($role) {
+    switch ($role) {
             case 'guru':
                 $guru = guru::where('id', $userId)->first();
                 if ($guru) {
@@ -92,6 +92,57 @@ class kbmController extends Controller
                 break;
         }
 
+        // Server-side search support: accept a single 'q' parameter and filter across
+        // related guru (nama, mapel), walas (namakelas, jenjang) and hari.
+        $search = request()->query('q');
+        if ($search) {
+            $searchRaw = trim(strtolower($search));
+            $code = $this->codeCAD($searchRaw); // normalize jenjang search to X/XI/XII if possible
+
+            $query->where(function($q) use ($searchRaw, $code) {
+                $q->whereHas('guru', function($qg) use ($searchRaw) {
+                    $qg->where('nama', 'like', "%{$searchRaw}%")
+                       ->orWhere('mapel', 'like', "%{$searchRaw}%");
+                })
+                ->orWhereHas('walas', function($qw) use ($searchRaw, $code) {
+                    $qw->where('namakelas', 'like', "%{$searchRaw}%");
+                    if ($code) {
+                        // match normalized jenjang exactly (data stores X/XI/XII)
+                        $qw->orWhere('jenjang', '=', $code);
+                    } else {
+                        $qw->orWhere('jenjang', 'like', "%{$searchRaw}%");
+                    }
+                })
+                ->orWhere('hari', 'like', "%{$searchRaw}%");
+            });
+        }
+
         return response()->json($query->get());
+    }
+
+    /**
+     * Normalize various jenjang representations to canonical values used in DB.
+     * Examples: '10', 'kelas 10', 'x', 'X', 'xi', '11' -> returns 'X', 'XI', 'XII' etc.
+     */
+    private function codeCAD($value)
+    {
+        if (!$value) return null;
+        $s = strtolower(trim($value));
+
+        // If numeric 10/11/12 present
+        if (preg_match('/\b10\b/', $s)) return 'X';
+        if (preg_match('/\b11\b/', $s)) return 'XI';
+        if (preg_match('/\b12\b/', $s)) return 'XII';
+
+        // roman/letter forms
+        if (strpos($s, 'xii') !== false) return 'XII';
+        if (strpos($s, 'xi') !== false) return 'XI';
+        if (strpos($s, 'x') !== false) return 'X';
+
+        // fallback: if first token matches one of X/XI/XII
+        $first = strtoupper(strtok($s, " \t\n\r\0\x0B"));
+        if (in_array($first, ['X', 'XI', 'XII'])) return $first;
+
+        return null;
     }
 }
