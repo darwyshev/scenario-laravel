@@ -278,7 +278,7 @@
                         @if(session('admin_role') === 'admin' || session('admin_role') === 'guru')
                         <div class="mb-3 row">
                             <div class="col">
-                                <input type="text" id="kbm-search" class="form-control form-control-sm" placeholder="Format: guru, mapel, kelasLetter, jenjang, hari, time — e.g. adi, informatika, b, xi, selasa, 10.00">
+                                <input type="text" id="kbm-search" class="form-control form-control-sm" placeholder="Search tokens (space-separated). Examples: 'adi senin', 'adi xi', 'informatika b 10.00'">
                             </div>
                         </div>
                         @endif

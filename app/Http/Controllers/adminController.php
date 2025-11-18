@@ -6,10 +6,21 @@ use Illuminate\Http\Request;
 use App\Models\admin;
 use App\Models\siswa;
 use App\Models\guru;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
+use App\Services\AuthService;
 use Illuminate\Support\Facades\Hash;
+
 
 class adminController extends Controller
 {
+    protected $service;
+
+    public function __construct(AuthService $service)
+    {
+        $this->service = $service;
+    }
+
     public function landing()
     {
         return view('landing');
@@ -20,30 +31,25 @@ class adminController extends Controller
         return view('login');
     }
 
-    public function prosesLogin(Request $request)
+    public function prosesLogin(LoginRequest $request)
     {
-        $admin = admin::where('username', $request->username)->first();
-        
-        // Validate credentials using guard or attempt method
-        $validCredentials = $admin && Hash::check($request->password, $admin->password);
-        
-        if (!$validCredentials) {
+        $admin = $this->service->login($request->validated());
+
+        if (!$admin) {
             return back()->with('error', 'Username atau password salah.');
         }
-        
-        // Set session data
+
         session([
             'admin_id' => $admin->id,
             'admin_username' => $admin->username,
             'admin_role' => $admin->role
         ]);
-        
+
         return redirect()->route('home');
     }
 
     public function logout()
     {
-        //hapus session
         session()->forget(['admin_id', 'admin_username', 'admin_role']);
         return redirect()->route('landing');
     }
@@ -53,35 +59,10 @@ class adminController extends Controller
         return view('register');
     }
 
-    public function prosesRegister(Request $request)
+    public function prosesRegister(RegisterRequest $request)
     {
-        try {
-            // validasi umum
-            $request->validate([
-                'username' => 'required|string|max:50|unique:dataadmin,username',
-                'password' => 'required|string|min:4',
-                'role' => 'required|string|in:admin,guru,siswa',
-            ]);
-
-            // simpan ke tabel dataadmin
-            $admin = admin::create([
-                'username' => $request->username,
-                'password' => Hash::make($request->password),
-                'role' => $request->role,
-            ]);
-
-            // Validate and create role-specific data
-            match($request->role) {
-                'siswa' => $this->createSiswaData($request, $admin->id),
-                'guru' => $this->createGuruData($request, $admin->id),
-                default => null,
-            };
-
-            return redirect()->route('formLogin')->with('success', 'Registrasi berhasil! Silakan login.');
-
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Registrasi gagal: ' . $e->getMessage());
-        }
+        $this->service->register($request->validated());
+        return redirect()->route('formLogin')->with('success', 'Registrasi berhasil! Silakan login.');
     }
 public function home()
 {

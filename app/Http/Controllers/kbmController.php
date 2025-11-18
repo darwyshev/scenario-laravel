@@ -92,97 +92,107 @@ class kbmController extends Controller
                 break;
         }
 
-        // Server-side search support: accept a single 'q' parameter.
-        // If the 'q' string contains commas we'll treat it as a formatted search:
-        // 0: guru (nama), 1: mapel, 2: kelas (e.g. A/B/C), 3: jenjang, 4: hari, 5: time (mulai/selesai)
-        // Tokens are applied as AND filters. If there are no commas we fall back to a broad search.
+        // Server-side: support space-separated tokens where each token must match at least one column.
+        // This allows queries like "username senin" to match a row where the guru is 'username' AND hari is 'senin'.
         $search = request()->query('q');
         if ($search) {
             $searchRaw = trim($search);
-            // detect formatted (comma-separated) search
-            if (strpos($searchRaw, ',') !== false) {
-                $tokens = array_map('trim', explode(',', $searchRaw));
-                // apply each token as an AND filter according to position
-                if (!empty($tokens)) {
-                    // Lowercase tokens for comparisons where appropriate
-                    $t = array_map(function($s){ return strtolower($s); }, $tokens);
+            // Split on whitespace to get tokens
+            $tokens = preg_split('/\s+/', $searchRaw);
+            if ($tokens && count($tokens) > 0) {
+                // collect probable name/mapel tokens to attempt combined phrase match
+                $nameParts = [];
+                $otherTokens = [];
 
-                    $query->where(function($q) use ($t) {
-                        // token 0: guru nama
-                        if (isset($t[0]) && $t[0] !== '') {
-                            $q->whereHas('guru', function($g) use ($t) {
-                                $g->where('nama', 'like', "%{$t[0]}%");
-                            });
-                        }
+                $classLetter = null;
 
-                        // token 1: mapel
-                        if (isset($t[1]) && $t[1] !== '') {
-                            $q->whereHas('guru', function($g) use ($t) {
-                                $g->where('mapel', 'like', "%{$t[1]}%");
-                            });
+                    // If last token is a single letter and there is at least one other token,
+                    // treat it as an explicit class-letter (e.g. 'scot kautzer a') and remove it
+                    // from the main token list so it's not mis-classified as part of the name.
+                    if (count($tokens) > 1) {
+                        $lastTok = strtolower(trim($tokens[count($tokens) - 1]));
+                        if (preg_match('/^[a-z]$/', $lastTok)) {
+                            $classLetter = $lastTok;
+                            array_pop($tokens);
                         }
+                    }
 
-                        // token 2: kelas (allow matching by letter or any substring)
-                        if (isset($t[2]) && $t[2] !== '') {
-                            $kelasToken = $t[2];
-                            $q->whereHas('walas', function($w) use ($kelasToken) {
-                                $w->where('namakelas', 'like', "%{$kelasToken}%")
-                                  ->orWhereRaw('LOWER(namakelas) LIKE ?', ["% {$kelasToken}%"]);
-                            });
-                        }
+                    foreach ($tokens as $token) {
+                        $tok = strtolower(trim($token));
+                        if ($tok === '') continue;
 
-                        // token 3: jenjang (use codeCAD normalization)
-                        if (isset($t[3]) && $t[3] !== '') {
-                            $jenjangToken = $t[3];
-                            $code = $this->codeCAD($jenjangToken);
-                            $q->whereHas('walas', function($w) use ($jenjangToken, $code) {
-                                if ($code) {
-                                    $w->where('jenjang', '=', $code);
-                                } else {
-                                    $w->where('jenjang', 'like', "%{$jenjangToken}%");
-                                }
-                            });
-                        }
+                        $isSingleLetter = preg_match('/^[a-z]$/', $tok);
+                        $isTimeLike = preg_match('/[0-9]/', $tok);
+                        $isJenjang = $this->codeCAD($tok) !== null;
+                        $days = ['senin','selasa','rabu','kamis','jumat','jum\'at','sabtu','minggu'];
+                        $isDay = in_array($tok, $days, true);
 
-                        // token 4: hari
-                        if (isset($t[4]) && $t[4] !== '') {
-                            $hariToken = $t[4];
-                            $q->where('hari', 'like', "%{$hariToken}%");
+                        // If token is not a class letter, not a time, not a jenjang code, and not a day,
+                        // treat it as part of a name/mapel phrase. Otherwise treat as other token.
+                        if (!$isSingleLetter && !$isTimeLike && !$isJenjang && !$isDay) {
+                            $nameParts[] = $tok;
+                        } else {
+                            $otherTokens[] = $tok;
                         }
+                    }
 
-                        // token 5: time (match mulai or selesai)
-                        if (isset($t[5]) && $t[5] !== '') {
-                            $timeToken = $t[5];
-                            // allow both dot and colon formats
-                            $timeAlt = str_replace('.', ':', $timeToken);
-                            $q->where(function($qt) use ($timeToken, $timeAlt) {
-                                $qt->where('mulai', 'like', "%{$timeToken}%")
-                                   ->orWhere('mulai', 'like', "%{$timeAlt}%")
-                                   ->orWhere('selesai', 'like', "%{$timeToken}%")
-                                   ->orWhere('selesai', 'like', "%{$timeAlt}%");
-                            });
-                        }
+                // If we have name parts assemble phrase and require it matches guru.nama (AND)
+                if (count($nameParts) > 0) {
+                    $namePhrase = implode(' ', $nameParts);
+                    $query->whereHas('guru', function($g) use ($namePhrase) {
+                        $g->whereRaw('LOWER(nama) LIKE ?', ["%{$namePhrase}%"])
+                          ->orWhereRaw('LOWER(mapel) LIKE ?', ["%{$namePhrase}%"]);
                     });
                 }
-            } else {
-                // Fallback: broad search across guru (nama,mapel), walas (namakelas, jenjang) and hari
-                $searchLower = strtolower($searchRaw);
-                $code = $this->codeCAD($searchLower);
-                $query->where(function($q) use ($searchLower, $code) {
-                    $q->whereHas('guru', function($qg) use ($searchLower) {
-                        $qg->where('nama', 'like', "%{$searchLower}%")
-                           ->orWhere('mapel', 'like', "%{$searchLower}%");
-                    })
-                    ->orWhereHas('walas', function($qw) use ($searchLower, $code) {
-                        $qw->where('namakelas', 'like', "%{$searchLower}%");
-                        if ($code) {
-                            $qw->orWhere('jenjang', '=', $code);
-                        } else {
-                            $qw->orWhere('jenjang', 'like', "%{$searchLower}%");
-                        }
-                    })
-                    ->orWhere('hari', 'like', "%{$searchLower}%");
-                });
+                
+                    // If we captured an explicit class letter at the end, require walas.namakelas to match it
+                    if ($classLetter) {
+                        $query->whereHas('walas', function($w) use ($classLetter) {
+                            $w->where(function($ww) use ($classLetter) {
+                                $ww->whereRaw('LOWER(namakelas) LIKE ?', ["% {$classLetter}%"]) 
+                                   ->orWhereRaw('LOWER(namakelas) LIKE ?', ["%{$classLetter}-%"]) 
+                                   ->orWhereRaw('LOWER(namakelas) LIKE ?', ["%{$classLetter}%"]);
+                            });
+                        });
+                    }
+
+                // Apply each other token as AND condition where it must match at least one column
+                foreach ($otherTokens as $tok) {
+                    $query->where(function($qtoken) use ($tok) {
+                        $qtoken->whereHas('guru', function($g) use ($tok) {
+                            $g->whereRaw('LOWER(nama) LIKE ?', ["%{$tok}%"]) 
+                              ->orWhereRaw('LOWER(mapel) LIKE ?', ["%{$tok}%"]);
+                        })
+                        ->orWhereHas('walas', function($w) use ($tok) {
+                            $code = $this->codeCAD($tok);
+                            if (preg_match('/^[a-z]$/', $tok)) {
+                                $w->where(function($ww) use ($tok, $code) {
+                                    $ww->whereRaw('LOWER(namakelas) LIKE ?', ["% {$tok}%"]) 
+                                       ->orWhereRaw('LOWER(namakelas) LIKE ?', ["%{$tok}-%"]) 
+                                       ->orWhereRaw('LOWER(namakelas) LIKE ?', ["%{$tok}%"]);
+
+                                    if ($code) {
+                                        $ww->orWhere('jenjang', '=', $code);
+                                    } else {
+                                        $ww->orWhereRaw('LOWER(jenjang) LIKE ?', ["%{$tok}%"]);
+                                    }
+                                });
+                            } else {
+                                $w->whereRaw('LOWER(namakelas) LIKE ?', ["%{$tok}%"]);
+                                if ($code) {
+                                    $w->orWhere('jenjang', '=', $code);
+                                } else {
+                                    $w->orWhereRaw('LOWER(jenjang) LIKE ?', ["%{$tok}%"]);
+                                }
+                            }
+                        })
+                        ->orWhereRaw('LOWER(hari) LIKE ?', ["%{$tok}%"])
+                        ->orWhere('mulai', 'like', "%{$tok}%")
+                        ->orWhere('mulai', 'like', "%" . str_replace('.', ':', $tok) . "%")
+                        ->orWhere('selesai', 'like', "%{$tok}%")
+                        ->orWhere('selesai', 'like', "%" . str_replace('.', ':', $tok) . "%");
+                    });
+                }
             }
         }
 
